@@ -7,10 +7,12 @@
 #define ACTIVATE_TOP     PIN_PB2
 #define ACTIVATE_BOTTOM  PIN_PA6   
 #define SELECTOR         PIN_PA4
+#define ONOFF            PIN_PA3
 #define SENSE_VOLTAGE    PIN_PA5
 #define SENSE_CURRENT    PIN_PA7
 
 // -- state of the hardware
+volatile bool standby = true;
 volatile int tempset = 0;  // in celsius
 volatile int tempcur = 0;  // in celsius
 volatile int voltage = 0;  // in mV
@@ -23,6 +25,8 @@ bool activate_bottom = false;
 unsigned long sum_current = 0;
 unsigned long sum_voltage = 0;
 unsigned long samples_taken = 0;
+byte prev_onoff = HIGH;
+long ierror = 0;
  
 // -- configure pins and set up interrupt
 void setup() 
@@ -32,6 +36,7 @@ void setup()
   pinMode(ACTIVATE_BOTTOM, OUTPUT);
   digitalWrite(ACTIVATE_BOTTOM, LOW);
   pinMode(SELECTOR, INPUT);
+  pinMode(ONOFF, INPUT_PULLUP);
   pinMode(SENSE_VOLTAGE, INPUT);
   pinMode(SENSE_CURRENT, INPUT);
 
@@ -55,6 +60,29 @@ ISR (TCA0_OVF_vect) {
   TCA0.SINGLE.INTFLAGS = 0x01;        // clear interrupt flag
   phase = phase<99 ? phase+1 : 0;     // cycle phase
 
+  if (phase==1) // sample standby switch only 10 times per second
+  {
+    byte onoff = digitalRead(ONOFF);
+    if (onoff==LOW && prev_onoff==HIGH) 
+    { 
+      standby = !standby; 
+      if (standby)
+      { 
+        activate_top = false;
+        activate_bottom = false;
+        digitalWrite(ACTIVATE_TOP, LOW);
+        digitalWrite(ACTIVATE_BOTTOM, LOW);
+      }
+      else
+      {
+        ierror = 0;
+        duty = 1;
+      }
+    }
+    prev_onoff = onoff;    
+  }  
+  if (standby) { return; }
+  
   int t = 355 - (analogRead(SELECTOR) >> 2);
   if (t!=tempset+1) { tempset=t; } 
 
@@ -73,15 +101,20 @@ ISR (TCA0_OVF_vect) {
     int resistance = (unsigned int) ( (((unsigned long)voltage) * 1000) / current );
     tempcur = 20 + (resistance-4000) / 16;
     if (tempcur<0) { tempcur=0; }
-    
     sum_current = 0;
     sum_voltage = 0;
-    samples_taken=0;    
-  }
+    samples_taken=0;
+    
+    int error = tempset - tempcur;
+    ierror += error;
+    if (ierror<-2000000000L) { ierror=-2000000000L; }
+    if (ierror>2000000000L) { ierror=2000000000L; }
 
-  duty = (tempset-100)/2;
-  if (duty<1) duty=1;
-  if (duty>100) duty=100;
+    duty = error/2 + ierror/512;
+    if (duty<1) duty=1;
+    if (duty>100) duty=100;
+    if (duty>50 && current>2000) { duty=50; }
+  }
 
   int phase2 = phase<50 ? phase+50 : phase-50;
   activate_top = (phase >= 100-duty);
@@ -96,7 +129,7 @@ ISR (TCA0_OVF_vect) {
 
 OLED display(Wire, 0x3C, NO_RESET_PIN, 1, 64, true);
 
-bool vis_active = false;
+bool vis_standby = false;
 int vis_tempset = -1;
 int vis_tempcur = -1;
 int vis_voltage = -1;
@@ -254,15 +287,29 @@ void small_number(int x, int page, int value, int digits)
 }
 
 void loop() {
+  bool b;
   int v;
   
-  if (!vis_active) {
-    vis_active = true;   
-    display.init();
-    display.rotate_180(true);
-    for (int page=0; page<8; page++)
+  noInterrupts(); b = standby; interrupts();
+  if (b!=vis_standby) {
+    vis_standby = b;
+    if (vis_standby)
     {
-      display.direct(0,page,128,background+page*16*8,16);
+      display.set_power(false);
+    }
+    else
+    {
+      display.init();
+      display.rotate_180(true);
+      for (int page=0; page<8; page++)
+      {
+        display.direct(0,page,128,background+page*16*8,16);
+      }
+      vis_tempset = -1;
+      vis_tempcur = -1;
+      vis_voltage = -1;
+      vis_current = -1;
+      vis_duty = -1;
     }
   }
   

@@ -324,7 +324,7 @@ void OLED::direct(uint8_t x, uint8_t page, uint8_t width, const uint8_t* scandat
         i2c.write(0x00); // command
         if (isSH1106)
         {
-            uint8_t col = x+2; // needed for my specific display
+            uint8_t col = x+0; // needed for my specific display
             i2c.write(0xB0 + page); // set page
             i2c.write(0x00 | (col&0x0F)); // lower columns address =0 
             i2c.write(0x10 | (col>>4));   // upper columns address =0
