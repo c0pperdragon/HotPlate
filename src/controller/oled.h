@@ -133,7 +133,7 @@ public:
     /**
      * Transfer data directly to the display without using the buffer.
      */
-    void direct(uint8_t x, uint8_t page, uint8_t width, const uint8_t* scandata, uint8_t rowlength);
+    void direct(uint8_t x, uint8_t page, uint8_t width, uint8_t pages, const uint8_t* scandata, uint8_t rowlength);
     
     /**
      * Fill the whole buffer memory with white or black color.

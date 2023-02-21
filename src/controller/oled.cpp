@@ -317,28 +317,29 @@ void OLED::display()
     }
 }
 
-void OLED::direct(uint8_t x, uint8_t page, uint8_t width, const uint8_t* scandata, uint8_t rowlength)
+void OLED::direct(uint8_t x, uint8_t page, uint8_t width, uint8_t pages, const uint8_t* scandata, uint8_t rowlength)
 {
+    for (uint8_t p=0; p<pages; p++)
+    {
         // Set memory address to fill
         i2c.beginTransmission(i2c_address);
         i2c.write(0x00); // command
         if (isSH1106)
         {
             uint8_t col = x+0; // needed for my specific display
-            i2c.write(0xB0 + page); // set page
+            i2c.write(0xB0 + (page+p)); // set page
             i2c.write(0x00 | (col&0x0F)); // lower columns address =0 
             i2c.write(0x10 | (col>>4));   // upper columns address =0
         }
         else
         {
-            i2c.write(0xB0 + page); // set page
+            i2c.write(0xB0 + (page+p)); // set page
             i2c.write(0x21); // column address
             i2c.write(x); // first column
             i2c.write(x+width - 1); // last column
         }
         i2c.endTransmission();
 
-        // send one page of buffer to the display
         i2c.beginTransmission(i2c_address);
         i2c.write(0x40); // data
         for (uint8_t column = 0; column < width; column++)
@@ -354,12 +355,13 @@ void OLED::direct(uint8_t x, uint8_t page, uint8_t width, const uint8_t* scandat
             uint8_t allbits = 0;
             for (uint8_t y=0; y<8; y++)
             {
-                uint8_t bit = (scandata[((int)rowlength)*y + (column>>3)] << (column&0x07)) & 0x80;  // either 0x80 or 0x00
+                uint8_t bit = (scandata[((int)rowlength)*(p*8+y) + (column>>3)] << (column&0x07)) & 0x80;  // either 0x80 or 0x00
                 allbits = (allbits >> 1) | bit;
             }
             i2c.write(allbits);
         }
         i2c.endTransmission();
+    }
 }
 
 void OLED::draw_byte(uint_fast8_t x, uint_fast8_t y, uint8_t b, tColor color)
