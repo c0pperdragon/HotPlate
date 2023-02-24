@@ -96,7 +96,7 @@ ISR (TCA0_OVF_vect) {
   // do nothing else in standby
   if (standby) { return; }
   
-  tempset = 305 - (analogRead(SELECTOR) >> 2);
+  tempset = 227 - (analogRead(SELECTOR) >> 3);
 
   if (activate_top)
   {
@@ -117,10 +117,11 @@ ISR (TCA0_OVF_vect) {
     sum_voltage = 0;
     samples_taken=0;
 
-    duty = tempset*10/25 - 21;    // approximation for steady temperature 
-    if (tempcur<tempset) { duty += 10; }
-    if (tempcur>tempset) { duty -= 10; }   
-    if (duty<1) duty=1;
+    int power = 1300 + (tempset-155) * 10;    // in 100th watt  - estimated by experiment   
+    duty = ((1000000L / current) * power) / voltage;
+    if (tempcur>=tempset) { duty=0; }       
+//    duty = tempset*10/25 - 21;    // approximation for steady temperature 
+    if (duty<5) duty=5;
     if (duty>99) duty=99;
     if (duty>50 && current>2200) { duty=50; }
   }
@@ -302,12 +303,10 @@ void loop() {
   noInterrupts(); b = standby; interrupts();
   if (b!=vis_standby) {
     vis_standby = b;
-    if (vis_standby)
-    {
+    if (vis_standby) {
       display.set_power(false);
     }
-    else
-    {
+    else {
       display.init();
       display.rotate_180(true);
       display.direct(0,0,128,8,background,16);
@@ -331,7 +330,7 @@ void loop() {
   }
   
   noInterrupts(); v = tempset; interrupts();
-  if (v<vis_tempset-1 || v>vis_tempset) {
+  if (v!=vis_tempset) { // v<vis_tempset-1 || v>vis_tempset) {
     vis_tempset = v;
     big_number(48,0,3, fahrenheit ? 32 + v*9/5 :v, 3);
   }
@@ -345,7 +344,13 @@ void loop() {
   noInterrupts(); v = duty; interrupts();
   if (v!=vis_duty) {
     vis_duty = v;
-    small_number(0,6,v,2);
+    if (v>5) {
+      small_number(0,6,v,2);
+    }
+    else {
+      display.direct(0, 6, 20, 1, background, 1);
+      display.direct(0, 7, 20, 1, background, 1);
+    }
   }
 
   noInterrupts(); v = voltage/10; interrupts();
