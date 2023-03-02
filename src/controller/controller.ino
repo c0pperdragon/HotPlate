@@ -108,10 +108,10 @@ ISR (TCA0_OVF_vect) {
   }
   if (phase==0) 
   {
-    voltage = (unsigned int) ( (sum_voltage * 12000) / (samples_taken * 767) );      // calibrated value
-    current = (unsigned int) ( (sum_current * 1000) / (samples_taken * 81) );        // calibrated value
-    int resistance = (unsigned int) ( (((unsigned long)voltage) * 1000) / current );
-    tempcur = 20 + (resistance-4000) / 16;
+    voltage = (int) ( (sum_voltage * 12000) / (samples_taken * 767) );      // in millivolt
+    current = (int) ( (sum_current * 1000) / (samples_taken * 81) );        // in milliampere
+    int resistance = (int) ( (((long)voltage) * 1000) / current );          // in milliohm
+    tempcur = 20 + (resistance-3600) / 16;                                  // in centigrade
     if (tempcur<0) { tempcur=0; }
     sum_current = 0;
     sum_voltage = 0;
@@ -120,7 +120,6 @@ ISR (TCA0_OVF_vect) {
     int power = 1300 + (tempset-155) * 10;    // in 100th watt  - estimated by experiment   
     duty = ((1000000L / current) * power) / voltage;
     if (tempcur>=tempset) { duty=0; }       
-//    duty = tempset*10/25 - 21;    // approximation for steady temperature 
     if (duty<5) duty=5;
     if (duty>99) duty=99;
     if (duty>50 && current>2200) { duty=50; }
