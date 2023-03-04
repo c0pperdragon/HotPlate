@@ -13,6 +13,9 @@ Cheap DIY solution to make a heater for hot-plate soldering.
 5. When the solder is molten enough, turn off the heater with the red button. Note that
 there is no support to automatically follow a temperature profile.
 
+To switch the device between centigrade and fahrenheit, press the power button more than 
+3 seconds when turning it on.
+
 ## Data shown on the display
 
 * Set: Selected target temperature
