@@ -46,7 +46,7 @@ may be not very precise. You will need to experimentally find the best temperatu
 ## Replacement heater plate
 
 The repeated thermal stress on the heater will probably cause it to get damaged eventually. In this case
-it is quite easy to have a replacement PCB made using the [Gerber files](heater/gerber/heater_rev1.zip).
+it is quite easy to have a replacement PCB made using the [Gerber files](heater/gerber).
 As you will probably get multiple parts from your manufacturer, this should then last for a considerable 
 time. 
 You can also just turn over the heater plate if the top surface gets scratched or is otherwise worn out,
