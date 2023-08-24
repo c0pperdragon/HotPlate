@@ -28,6 +28,9 @@ unsigned long sum_current = 0;
 unsigned long sum_voltage = 0;
 unsigned long samples_taken = 0;
 int onoff_presstime = 0;
+int runningtime = 0;
+boolean autofinish = false;
+int hightemperaturetime = 0;
  
 // -- configure pins and set up interrupt
 void setup() 
@@ -72,9 +75,19 @@ ISR (TCA0_OVF_vect) {
   else if (onoff_presstime < 32000)
   {
     onoff_presstime++;
-    if (onoff_presstime == 20)  // toggle standby after 20 ms button press
+  }
+  if (onoff_presstime == 20)  // toggle standby after 20 ms button press
+  {
+    // doing a second press after start turns on auto-finish
+    if ((!standby) && runningtime<1000) 
+    {
+        autofinish=true;
+    }
+    else
     {
       standby = !standby; 
+      autofinish = false;
+      hightemperaturetime = 0;
       if (standby)
       { 
         activate_top = false;
@@ -87,14 +100,31 @@ ISR (TCA0_OVF_vect) {
         duty = 1;
       }
     }
-    if (onoff_presstime == 3000)   // toggle fahrenheit/celsius after 3 seconds
-    {
-      fahrenheit = ! fahrenheit;
-      EEPROM.write(0, fahrenheit ? 0 : 255); 
-    }
-  }  
+  }
+  if (onoff_presstime == 3000)   // toggle fahrenheit/celsius after 3 seconds
+  {
+    fahrenheit = ! fahrenheit;
+    EEPROM.write(0, fahrenheit ? 0 : 255); 
+  }
+  if (onoff_presstime == 0 && autofinish && hightemperaturetime>10)
+  {
+      standby = true; 
+      activate_top = false;
+      activate_bottom = false;
+      digitalWrite(ACTIVATE_TOP, LOW);
+      digitalWrite(ACTIVATE_BOTTOM, LOW);
+  }
+    
   // do nothing else in standby
-  if (standby) { return; }
+  if (standby) 
+  { 
+     runningtime=0; 
+     return; 
+  }
+  // measure time since start of machine
+  else if (runningtime<32000) {
+    runningtime = runningtime+1;
+  }
   
   tempset = 227 - (analogRead(SELECTOR) >> 3);
 
@@ -119,7 +149,11 @@ ISR (TCA0_OVF_vect) {
 
     int power = 1300 + (tempset-155) * 10;    // in 100th watt  - estimated by experiment   
     duty = ((1000000L / current) * power) / voltage;
-    if (tempcur>=tempset) { duty=0; }       
+    if (tempcur>=tempset) 
+    { 
+        duty=0; 
+        if (hightemperaturetime<32000) { hightemperaturetime++; }
+    }       
     if (duty<5) duty=5;
     if (duty>99) duty=99;
     if (duty>50 && current>2200) { duty=50; }
@@ -145,6 +179,7 @@ int vis_voltage = -1;
 int vis_current = -1;
 int vis_duty = -1;
 bool vis_fahrenheit = false;
+bool vis_autofinish = false;
 
 const byte background[(128/8) * 64] = {
   B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,B00000000,
@@ -295,17 +330,21 @@ void small_number(int x, int page, int value, int digits)
   }
 }
 
-void loop() {
+void loop() 
+{
   bool b;
   int v;
   
   noInterrupts(); b = standby; interrupts();
-  if (b!=vis_standby) {
+  if (b!=vis_standby) 
+  {
     vis_standby = b;
-    if (vis_standby) {
+    if (vis_standby) 
+    {
       display.set_power(false);
     }
-    else {
+    else 
+    {
       display.init();
       display.rotate_180(true);
       display.direct(0,0,128,8,background,16);
@@ -319,7 +358,8 @@ void loop() {
   }
   
   noInterrupts(); b = fahrenheit; interrupts();
-  if (b!=vis_fahrenheit) {
+  if (b!=vis_fahrenheit) 
+  {
     vis_fahrenheit = b;
     vis_tempset = -1;
     vis_tempcur = -1;
@@ -329,19 +369,22 @@ void loop() {
   }
   
   noInterrupts(); v = tempset; interrupts();
-  if (v!=vis_tempset) { // v<vis_tempset-1 || v>vis_tempset) {
+  if (v!=vis_tempset)  // v<vis_tempset-1 || v>vis_tempset) 
+  {
     vis_tempset = v;
     big_number(48,0,3, fahrenheit ? 32 + v*9/5 :v, 3);
   }
 
   noInterrupts(); v = tempcur; interrupts();
-  if (v<vis_tempcur-1 || v>vis_tempcur) {
+  if (v<vis_tempcur-1 || v>vis_tempcur) 
+  {
     vis_tempcur = v;
     big_number(48,3,0, fahrenheit ? 32 + v*9/5 :v, 3);
   }
 
   noInterrupts(); v = duty; interrupts();
-  if (v!=vis_duty) {
+  if (v!=vis_duty) 
+  {
     vis_duty = v;
     if (v>5) {
       small_number(0,6,v,2);
@@ -353,18 +396,28 @@ void loop() {
   }
 
   noInterrupts(); v = voltage/10; interrupts();
-  if (v!=vis_voltage) {
+  if (v!=vis_voltage) 
+  {
     vis_voltage = v;
     small_number(25,6,v/100,2);
     small_number(48,6,v%100,2);
   }
   
   noInterrupts(); v = current; interrupts();
-  if (v!=vis_current) {
+  if (v!=vis_current) 
+  {
     vis_current = v;
     small_number(82,6,v/1000,1);
     small_number(95,6,v%1000,3);
   }
   
+  noInterrupts(); b = autofinish; interrupts();
+  if (b!=vis_autofinish) 
+  {
+    vis_autofinish = b;
+    display.direct(0,  0, 8, 2, smalldigits+0  + 1*12, 12);
+    display.direct(10, 0, 8, 2, smalldigits+11 + 1*12, 12);
+    display.direct(20, 0, 8, 2, smalldigits+11 + 1*12, 12);
+  }
 }
     
