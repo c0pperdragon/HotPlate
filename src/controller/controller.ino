@@ -141,7 +141,7 @@ ISR (TCA0_OVF_vect) {
     voltage = (int) ( (sum_voltage * 12000) / (samples_taken * 767) );      // in millivolt
     current = (int) ( (sum_current * 1000) / (samples_taken * 81) );        // in milliampere
     int resistance = (int) ( (((long)voltage) * 1000) / current );          // in milliohm
-    tempcur = 20 + (resistance-3600) / 16;                                  // in centigrade
+    tempcur = 20 + (resistance-3000) / 16;                                  // in centigrade
     if (tempcur<0) { tempcur=0; }
     sum_current = 0;
     sum_voltage = 0;
